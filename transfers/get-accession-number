@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+import sys
+
+def main(dirname):
+    print('"' + dirname + '"')
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1]))

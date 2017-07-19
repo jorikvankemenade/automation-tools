@@ -214,6 +214,22 @@ def get_accession_id(dirname):
         return None
 
 
+def signal_status(unit):
+    """Calls all the scripts in the subfolder `signals` each time there is a change of status.
+
+    :param unit: the models.Unit object concerned
+    """
+    # Run all scripts in signals directory
+    run_scripts(
+        'signals',
+        unit.path,  # Absolute path
+        unit.unit_type,  # Transfer type
+        unit.status,  # status (COMPLETED, FAILED...)
+        unit.uuid if unit.uuid else 'None',  # UUID if it exists
+        unit.accession_id if unit.accession_id else 'None'  # accession ID if it exists
+    )
+
+
 def run_pre_transfer_scripts(config_file, transfer_path, transfer_type):
     """Wrapper for the run_scripts function. Pre-transfer functions want to
     modify the transfer itself, therefore the transfer path sent by the
@@ -493,13 +509,17 @@ def start_transfer(
             LOGGER.info("Approved %s", result)
             # Store the absolute path to help users to determine what type
             # the transfer is, and where something it is.
-            new_transfer = models.add_new_transfer(uuid=result, path=target)
+            new_transfer = models.add_new_transfer(uuid=result, path=target,
+                                                   status='PROCESSING',
+                                                   accession_id=accession)
             LOGGER.info("New transfer: %s", new_transfer)
+            signal_status(new_transfer)
             break
         LOGGER.info("Failed transfer approval, try %s of %s", i + 1, retry_count)
     else:
-        new_transfer = models.failed_to_approve(path=target)
+        new_transfer = models.failed_to_approve(path=target, accession_id=accession)
         LOGGER.warning("Transfer not approved: %s", transfer_name)
+        signal_status(new_transfer)
         return None
     # Start transfer completed successfully.
     LOGGER.info("Finished %s", target)
@@ -636,12 +656,14 @@ def main(
         try:
             status = status_info.get("status")
             models.update_unit_status(current_unit, status)
+            if current_unit.status != status or current_unit.uuid != unit_uuid:
+                current_unit.status = status
+                signal_status(current_unit)
         except AttributeError as err:
             LOGGER.error(
                 "Cannot read response from server for %s: %s", current_unit, err
             )
             return None
-
     # If processing, exit
     if status == "PROCESSING":
         LOGGER.info("Current transfer still processing, nothing to do.")

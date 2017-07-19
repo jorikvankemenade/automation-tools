@@ -18,18 +18,19 @@ class Unit(Base):
 
     id = Column(Integer, Sequence("user_id_seq"), primary_key=True)
     uuid = Column(String(36))
+    accession_id = Column(String(255), nullable=True)
     path = Column(LargeBinary())
     unit_type = Column(String(10))  # ingest or transfer
-    status = Column(String(20), nullable=True)
+    status = Column(String(20), nullable=False)
     microservice = Column(String(50))
     current = Column(Boolean(create_constraint=False))
 
     def __repr__(self):
         return (
-            "<Unit(id={s.id}, uuid={s.uuid}, unit_type={s.unit_type}, "
-            "path={s.path}, status={s.status}, current={s.current})>".format(s=self)
+            "<Unit(id={s.id}, uuid={s.uuid}, accession_id={s.accession_id}, "
+            "unit_type={s.unit_type}, path={s.path}, status={s.status}, "
+            "current={s.current})>".format(s=self)
         )
-
 
 def init_session(databasefile):
     """Initialize the database given a database filename and initiate the
@@ -70,12 +71,14 @@ def retrieve_unit_by_type_and_uuid(uuid, unit_type):
     return transfer_session.query(Unit).filter_by(unit_type=unit_type, uuid=uuid).one()
 
 
-def _update_unit(uuid, path, unit_type, status, current, microservice=""):
+def _update_unit(uuid, path, unit_type, status, current,
+                 accession_id=None, microservice=""):
     """Internal function to handle the updating of a unit in the database as
     a single atomic transaction.
     """
     unit = Unit(
         uuid=uuid,
+        accession_id=accession_id,
         path=path,
         unit_type=unit_type,
         status=status,
@@ -87,11 +90,11 @@ def _update_unit(uuid, path, unit_type, status, current, microservice=""):
     return unit
 
 
-def add_new_transfer(uuid, path):
+def add_new_transfer(uuid, path, status="", accession_id=None):
     """Add a new transfer unit to the database."""
     return _update_unit(
-        uuid=uuid, path=path, unit_type="transfer", status="", current=True
-    )
+        uuid=uuid, accession_id=accession_id, path=path, unit_type="transfer",
+        status=status, current=True)
 
 
 def transfer_failed_to_start(path):
@@ -101,13 +104,13 @@ def transfer_failed_to_start(path):
     )
 
 
-def failed_to_approve(path):
+def failed_to_approve(path, accession_id=None):
     """Update a unit when it has failed to be approved by the automation
     tools.
     """
     return _update_unit(
-        uuid=None, path=path, unit_type="transfer", status="", current=False
-    )
+        uuid=None, path=path, unit_type="transfer", status="", current=False,
+        accession_id=accession_id)
 
 
 def update_unit_type_and_uuid(unit, unit_type, uuid):
