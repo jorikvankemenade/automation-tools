@@ -374,6 +374,20 @@ def get_next_transfer(
     return None
 
 
+def check_lockfile(ss_url, ss_user, ss_api_key, ts_location_uuid, target):
+    """Check if lockfile exists."""
+    url = ss_url + '/api/v2/location/' + ts_location_uuid + '/browse/'
+    params = {
+        'username': ss_user,
+        'api_key': ss_api_key,
+        'path': base64.b64encode(target)
+    }
+    resp = requests.get(url, params=params)
+    entries = [base64.b64decode(e.encode('utf8'))
+               for e in resp.json()['entries']]
+    return 'lockfile' in entries
+
+
 def call_start_transfer_endpoint(
     am_url, am_user, am_api_key, target, transfer_type, accession, ts_location_uuid
 ):
@@ -469,6 +483,12 @@ def start_transfer(
             ts_location_uuid,
         )
         return None
+
+    if check_lockfile(ss_url, ss_user, ss_api_key, ts_location_uuid, target):
+        LOGGER.error(
+            "Files have not been transferred yet.")
+        return None
+
     LOGGER.info("Starting with %s", target)
     # Get accession ID
     accession = get_accession_id(target)
